@@ -6,7 +6,7 @@ import os  # for environment variables
 from threading import Timer
 
 # Configurations
-SEND_REPORT_EVERY = 600  # 10 minutes
+SEND_REPORT_EVERY = 300  # 5 minutes
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")  # Load from environment variable
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # Load from environment variable
 
